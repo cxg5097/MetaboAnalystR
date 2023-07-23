@@ -49,7 +49,7 @@ out <- unzip(temp, exdir = data_folder_Sample)
 # Date files for normal processing example are deposited below
 out
 ```
-## Data Inspection
+## QC Data Inspection
 Look for significant contaminants using 3D graph plotting rentention time
 and M/Z. Chunk should provide the RT range and MZ range in console.
 
@@ -58,6 +58,99 @@ and M/Z. Chunk should provide the RT range and MZ range in console.
 PerformDataInspect(data_folder_QC,res = 50)
 
 ```
+
+## ROI Extractions
+Software includes three methods for ROI extraction: 
+1. Standard simulation method ("ssm_trim") which is the default
+This method trims from m/z dinmension first and then RT dimension
+2. RT dimension method ("rt_specific")
+This method extracts + or - val from parts of the spectra
+3. M/Z dimension method ("mz_specific")
+This method extracts + or - val from parts of the spectra
+
+The output file is a trimmed file saved as a .mzML
+
+``` {r ROI}
+# QC samples are trimmed with "ssm_trim" strategy. 
+# The percentage of RT dimension retained is set as 20%.
+raw_data <- PerformROIExtraction(data_folder_QC, rt.idx = 0.2, rmConts = FALSE)
+```
+
+## Initialize Parameters
+Select the platform being used from the following list: UPLC-Q/E, UPLC-Q/TOF, 
+UPLC-T/TOF, UPLC-Ion_trap, UPLC-Orbitrap, UPLC-G2S, HPLC-Q/TOF, HPLC-Ion_Trap, 
+HPLC-Orbitrap and HPLC-S/Q. Specific parameters can be set manually as well.
+
+``` {r param setting}
+# Initial platform specific parameters
+param_initial <- SetPeakParam(platform = "UPLC-Q/E") 
+```
+
+
+## Parameter Optimization
+Perform parameter optimization using previously set parameters, input data, and
+number of cores available. Chunk will calculate noise in ppm, spit the data, 
+and iterate model parsing to increase Gaussian peak ratio
+
+``` {r parm optimize}
+# Select relative core according to your work platform
+param_optimized <- PerformParamsOptimization(raw_data, param = param_initial, ncore = 8)
+```
+
+
+
+## Peak Profiling
+Reads the raw MS data files and visualizes as Total Ion Chromatogram (TIC) and
+Base Peak Chromatogram (BPC). If a specific peak of interest wants to be
+visualized, an Extracted Ion Chromatogram can be generated. 
+
+``` {r peak profile}
+# Import raw MS data. The "SetPlotParam" parameters can be used to determine plot or not.
+rawData <- ImportRawMSData(NULL, data_folder_Sample, plotSettings = SetPlotParam(Plot=FALSE))
+```
+
+
+The optimized parameters previously found are then used to perform peak
+detection, alignment, and grouping. The output of this function are two 
+diagnostic plots (RT adjustment map and PCA plot showing sample clustering
+prior to data cleaning and stat analysis) as well as statistics on the total
+intensity of peaks from different samples.
+
+``` {r run profile}
+# Peak Profiling with optimized parameters
+mSet <- PerformPeakProfiling(rawData,param_optimized$best_parameters,
+                             plotSettings = SetPlotParam(Plot = T))
+```
+
+
+## Peak Annotation
+Annotate isotopes and adduct peaks using a method from CAMERA. Output is a .csv
+of annotated peaks and a formatted list of peaks for future use filtered based
+on user specs.
+
+``` {r annotation params}
+# Setting the Annotation Parameters.
+annParams <- SetAnnotationParam(polarity = "negative", mz_abs_add = 0.005)
+```
+
+``` {r peak annotation}
+# Perform peak annotation.
+annotPeaks <- PerformPeakAnnotation(mSet, annParams)
+```
+
+``` {r peak formatting}
+## Format and filter the peak list for MetaboAnalystR
+maPeaks <- FormatPeakList(annotPeaks, annParams, filtIso =F, filtAdducts = FALSE, missPercent = 1)
+```
+
+
+
+
+
+
+
+
+
 
 
 
